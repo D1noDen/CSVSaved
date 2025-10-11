@@ -24,6 +24,25 @@ export default function App() {
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [visibleRows, setVisibleRows] = useState({}); // Кількість видимих рядків для кожного CSV
 
+  // Функція для декодування base64 з UTF-8
+  const decodeBase64UTF8 = (base64) => {
+    try {
+      // Декодуємо base64 в бінарні дані
+      const binaryString = atob(base64);
+      // Конвертуємо бінарні дані в масив байтів
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      // Декодуємо UTF-8
+      const decoder = new TextDecoder('utf-8');
+      return decoder.decode(bytes);
+    } catch (err) {
+      console.error('Error decoding base64:', err);
+      return base64; // Повертаємо оригінал якщо не вдалося декодувати
+    }
+  };
+
   // Перевірка збереженої сесії при завантаженні
   React.useEffect(() => {
     const checkSession = async () => {
@@ -94,8 +113,8 @@ export default function App() {
             // Для CSV парсимо дані
             if (file.data) {
               try {
-                // Якщо data це base64, декодуємо
-                const csvText = atob(file.data);
+                // Якщо data це base64, декодуємо з UTF-8
+                const csvText = decodeBase64UTF8(file.data);
                 const rows = csvText.split('\n').map(row => row.split(','));
                 content = rows;
               } catch {
@@ -109,7 +128,7 @@ export default function App() {
             // Для текстових файлів
             if (file.data) {
               try {
-                content = atob(file.data); // Декодуємо base64
+                content = decodeBase64UTF8(file.data); // Декодуємо base64 з UTF-8
               } catch {
                 content = file.data; // Якщо не base64, використовуємо як є
               }
