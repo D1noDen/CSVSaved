@@ -314,6 +314,47 @@ export default function App() {
     }
   };
 
+  const handleFileDelete = async (fileId) => {
+    if (!confirm('Are you sure you want to delete this file?')) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/File/${fileId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Оновлюємо список файлів після видалення
+        await fetchUserFiles(userData?.userId || localStorage.getItem('userId'));
+        
+        // Закриваємо розгорнуту картку якщо вона була видалена
+        if (expandedCard === fileId) {
+          setExpandedCard(null);
+        }
+      } else {
+        const errorText = await response.text();
+        setError(errorText || 'Failed to delete file. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Failed to delete file.');
+      console.error('File delete error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addUser = () => {
     if (newUserEmail && !users.includes(newUserEmail)) {
       setUsers([...users, newUserEmail]);
@@ -629,18 +670,37 @@ export default function App() {
             ) : (
               uploadedData.map((data) => (
                 <div key={data.id} className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden">
-                  <div
-                    className="p-3 cursor-pointer active:bg-gray-50"
-                    onClick={() => setExpandedCard(expandedCard === data.id ? null : data.id)}
-                  >
-                    <div className="text-xs text-gray-500 mb-1">
-                      {data.filename} • {data.uploader} • {data.date}
-                    </div>
-                    {data.notes && (
-                      <div className="text-xs text-gray-600 mt-1 italic">
-                        📝 {data.notes}
+                  <div className="p-3">
+                    <div className="flex items-start justify-between">
+                      <div 
+                        className="flex-1 cursor-pointer active:bg-gray-50 -m-3 p-3"
+                        onClick={() => setExpandedCard(expandedCard === data.id ? null : data.id)}
+                      >
+                        <div className="text-xs text-gray-500 mb-1">
+                          {data.filename} • {data.uploader} • {data.date}
+                        </div>
+                        {data.notes && (
+                          <div className="text-xs text-gray-600 mt-1 italic">
+                            📝 {data.notes}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFileDelete(data.id);
+                        }}
+                        disabled={loading}
+                        className="ml-2 text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                        title="Delete file"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18"></path>
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   
                   {expandedCard === data.id && (
