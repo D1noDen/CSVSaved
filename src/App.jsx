@@ -12,38 +12,7 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [notes, setNotes] = useState('');
   const fileInputRef = useRef(null);
-  const [uploadedData, setUploadedData] = useState([
-    { 
-      id: 1, 
-      type: 'csv',
-      filename: 'sales_data.csv',
-      uploader: 'john@example.com', 
-      date: '2025-10-08',
-      content: [
-        ['Product', 'Sales', 'Region'],
-        ['Widget A', '1500', 'North'],
-        ['Widget B', '2300', 'South'],
-        ['Gadget X', '890', 'East'],
-        ['Gadget Y', '1750', 'West']
-      ]
-    },
-    { 
-      id: 2, 
-      type: 'text',
-      filename: 'meeting_notes.txt',
-      uploader: 'sarah@example.com', 
-      date: '2025-10-05',
-      content: 'Team meeting notes:\n\n- Discussed Q4 roadmap\n- Approved new feature proposals\n- Set deadline for sprint planning\n- Review scheduled for next week\n\nAction items:\n1. Update documentation\n2. Schedule design review\n3. Prepare demo for stakeholders'
-    },
-    { 
-      id: 3, 
-      type: 'image',
-      filename: 'chart.png',
-      uploader: 'mike@example.com', 
-      date: '2025-10-03',
-      content: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y4ZjlmYSIvPjxyZWN0IHg9IjUwIiB5PSIyMDAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4MCIgZmlsbD0iIzM2ODhlZiIvPjxyZWN0IHg9IjEzMCIgeT0iMTUwIiB3aWR0aD0iNjAiIGhlaWdodD0iMTMwIiBmaWxsPSIjMzY4OGVmIi8+PHJlY3QgeD0iMjEwIiB5PSIxMDAiIHdpZHRoPSI2MCIgaGVpZ2h0PSIxODAiIGZpbGw9IiMzNjg4ZWYiLz48cmVjdCB4PSIyOTAiIHk9IjcwIiB3aWR0aD0iNjAiIGhlaWdodD0iMjEwIiBmaWxsPSIjMzY4OGVmIi8+PHRleHQgeD0iMjAwIiB5PSIzMCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzFmMjkzNyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC13ZWlnaHQ9ImJvbGQiPlNhbGVzIEdyb3d0aCBDaGFydDwvdGV4dD48L3N2Zz4='
-    }
-  ]);
+  const [uploadedData, setUploadedData] = useState([]);
   const [expandedCard, setExpandedCard] = useState(null);
   const [users, setUsers] = useState(['john@example.com', 'sarah@example.com']);
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -53,10 +22,11 @@ export default function App() {
   const [longPressTimer, setLongPressTimer] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+  const [visibleRows, setVisibleRows] = useState({}); // Кількість видимих рядків для кожного CSV
 
   // Перевірка збереженої сесії при завантаженні
   React.useEffect(() => {
-    const checkSession = () => {
+    const checkSession = async () => {
       const token = localStorage.getItem('authToken');
       const savedUserId = localStorage.getItem('userId');
       const savedEmail = localStorage.getItem('userEmail');
@@ -68,6 +38,9 @@ export default function App() {
         });
         setEmail(savedEmail);
         setScreen('main');
+        
+        // Завантажуємо файли користувача
+        await fetchUserFiles(savedUserId);
       }
     };
     
@@ -85,6 +58,86 @@ export default function App() {
     
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // Функція для завантаження файлів користувача
+  const fetchUserFiles = async (userId) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/File/getallfiles?userId=${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Response from server:', result);
+        
+        // Отримуємо масив файлів з поля data
+        const files = result.data || [];
+        console.log('Files array:', files);
+        
+        // Конвертуємо отримані файли в наш формат
+        const formattedData = files.map(file => {
+          let content;
+          
+          // Обробляємо різні типи файлів
+          if (file.fileType?.toLowerCase() === 'image') {
+            // Для зображень використовуємо base64 з data
+            content = file.data ? `data:image/png;base64,${file.data}` : '';
+          } else if (file.fileType?.toLowerCase() === 'csv') {
+            // Для CSV парсимо дані
+            if (file.data) {
+              try {
+                // Якщо data це base64, декодуємо
+                const csvText = atob(file.data);
+                const rows = csvText.split('\n').map(row => row.split(','));
+                content = rows;
+              } catch {
+                // Якщо не base64, просто розбиваємо на рядки
+                content = file.data.split('\n').map(row => row.split(','));
+              }
+            } else {
+              content = [['No data']];
+            }
+          } else {
+            // Для текстових файлів
+            if (file.data) {
+              try {
+                content = atob(file.data); // Декодуємо base64
+              } catch {
+                content = file.data; // Якщо не base64, використовуємо як є
+              }
+            } else {
+              content = 'No data';
+            }
+          }
+          
+          return {
+            id: file.fileId,
+            type: file.fileType?.toLowerCase() || 'text',
+            filename: file.fileName || 'Unknown',
+            uploader: localStorage.getItem('userEmail') || email || 'Unknown',
+            date: file.uploadDate ? new Date(file.uploadDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            notes: file.notes || '',
+            content: content
+          };
+        });
+        
+        console.log('Formatted data:', formattedData);
+        setUploadedData(formattedData);
+      } else if (response.status === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error('Error fetching files:', err);
+    }
+  };
 
   const handleLogin = async () => {
     if (email) {
@@ -142,6 +195,9 @@ export default function App() {
           }
           setScreen('main');
           setActiveTab('add');
+          
+          // Завантажуємо файли користувача
+          await fetchUserFiles(data.userId);
         } else {
           const errorData = await response.text();
           setError(errorData || 'Invalid code. Please try again.');
@@ -237,19 +293,8 @@ export default function App() {
       if (response.ok) {
         const result = await response.json();
         
-        // Додаємо файл до локального списку
-        const newData = {
-          id: result.id || uploadedData.length + 1,
-          type: fileType.toLowerCase(),
-          filename: selectedFile.name,
-          uploader: email,
-          date: new Date().toISOString().split('T')[0],
-          content: fileType === 'Image' 
-            ? URL.createObjectURL(selectedFile)
-            : [['Column 1', 'Column 2', 'Column 3'], ['Data 1', 'Data 2', 'Data 3']]
-        };
-        
-        setUploadedData([newData, ...uploadedData]);
+        // Оновлюємо список файлів з сервера
+        await fetchUserFiles(userData?.userId || localStorage.getItem('userId'));
         
         // Очищаємо вибраний файл та input
         setSelectedFile(null);
@@ -561,25 +606,54 @@ export default function App() {
 
         {activeTab === 'view' && (
           <div className="space-y-3">
-            {uploadedData.map((data) => (
-              <div key={data.id} className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden">
-                <div
-                  className="p-3 cursor-pointer active:bg-gray-50"
-                  onClick={() => setExpandedCard(expandedCard === data.id ? null : data.id)}
-                >
-                  <div className="text-xs text-gray-500 mb-1">
-                    {data.filename} • {data.uploader} • {data.date}
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-semibold text-gray-800">Your Files</h3>
+              <button
+                onClick={() => fetchUserFiles(userData?.userId || localStorage.getItem('userId'))}
+                disabled={loading}
+                className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+            
+            {console.log('Current uploadedData:', uploadedData)}
+            {console.log('uploadedData.length:', uploadedData.length)}
+            
+            {uploadedData.length === 0 ? (
+              <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-8 text-center">
+                <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No files uploaded yet</p>
+                <p className="text-xs text-gray-500 mt-2">Go to Add tab to upload your first file</p>
+              </div>
+            ) : (
+              uploadedData.map((data) => (
+                <div key={data.id} className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden">
+                  <div
+                    className="p-3 cursor-pointer active:bg-gray-50"
+                    onClick={() => setExpandedCard(expandedCard === data.id ? null : data.id)}
+                  >
+                    <div className="text-xs text-gray-500 mb-1">
+                      {data.filename} • {data.uploader} • {data.date}
+                    </div>
+                    {data.notes && (
+                      <div className="text-xs text-gray-600 mt-1 italic">
+                        📝 {data.notes}
+                      </div>
+                    )}
                   </div>
-                </div>
-                
-                {expandedCard === data.id && (
+                  
+                  {expandedCard === data.id && (
                   <div className="border-t border-gray-100 p-3">
                     {data.type === 'csv' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                      <div className="overflow-x-auto max-w-full -mx-3 px-3">
+                        <div className="mb-2 text-xs text-gray-600">
+                          Total rows: {data.content.length - 1} | Showing: {Math.min(visibleRows[data.id] || 50, data.content.length - 1)}
+                        </div>
+                        <table className="w-full text-sm min-w-max">
                           <thead>
                             <tr className="border-b border-gray-200">
-                              <th className="w-6 p-2"></th>
+                              <th className="w-6 p-2 sticky left-0 bg-white z-10"></th>
                               {data.content[0].map((header, idx) => (
                                 <th key={idx} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap">
                                   {header}
@@ -588,12 +662,12 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {data.content.slice(1).map((row, rowIdx) => (
+                            {data.content.slice(1, (visibleRows[data.id] || 50) + 1).map((row, rowIdx) => (
                               <tr 
                                 key={rowIdx} 
                                 className="border-b border-gray-100"
                               >
-                                <td className="w-6 p-2">
+                                <td className="w-6 p-2 sticky left-0 bg-white z-10">
                                   {copiedRow === `${data.id}-${rowIdx + 1}` && (
                                     <Check className="w-4 h-4 text-green-600" />
                                   )}
@@ -636,6 +710,25 @@ export default function App() {
                             ))}
                           </tbody>
                         </table>
+                        {(visibleRows[data.id] || 50) < data.content.length - 1 && (
+                          <button
+                            onClick={() => setVisibleRows({ 
+                              ...visibleRows, 
+                              [data.id]: Math.min((visibleRows[data.id] || 50) + 100, data.content.length - 1)
+                            })}
+                            className="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                          >
+                            Load More ({Math.min(100, data.content.length - 1 - (visibleRows[data.id] || 50))} rows)
+                          </button>
+                        )}
+                        {(visibleRows[data.id] || 50) >= 100 && (
+                          <button
+                            onClick={() => setVisibleRows({ ...visibleRows, [data.id]: 50 })}
+                            className="mt-2 w-full bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                          >
+                            Show Less (Reset to 50 rows)
+                          </button>
+                        )}
                         <div className="text-xs text-gray-500 mt-2 px-2">
                           Tap to copy row • Long press cell to edit
                         </div>
@@ -685,7 +778,8 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ))}
+            ))
+            )}
           </div>
         )}
 
