@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, Mail, Settings, LogOut, Plus, BookOpen, Calendar, User, Copy, Check } from 'lucide-react';
 
 export default function App() {
@@ -6,6 +6,12 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [activeTab, setActiveTab] = useState('add');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [userData, setUserData] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [notes, setNotes] = useState('');
+  const fileInputRef = useRef(null);
   const [uploadedData, setUploadedData] = useState([
     { 
       id: 1, 
@@ -39,7 +45,6 @@ export default function App() {
     }
   ]);
   const [expandedCard, setExpandedCard] = useState(null);
-  const [csvText, setCsvText] = useState('');
   const [users, setUsers] = useState(['john@example.com', 'sarah@example.com']);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [copiedRow, setCopiedRow] = useState(null);
@@ -48,6 +53,26 @@ export default function App() {
   const [longPressTimer, setLongPressTimer] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+
+  // Перевірка збереженої сесії при завантаженні
+  React.useEffect(() => {
+    const checkSession = () => {
+      const token = localStorage.getItem('authToken');
+      const savedUserId = localStorage.getItem('userId');
+      const savedEmail = localStorage.getItem('userEmail');
+      
+      if (token && savedUserId && savedEmail) {
+        setUserData({ 
+          userId: savedUserId, 
+          token: token 
+        });
+        setEmail(savedEmail);
+        setScreen('main');
+      }
+    };
+    
+    checkSession();
+  }, []);
 
   React.useEffect(() => {
     const handler = (e) => {
@@ -61,56 +86,186 @@ export default function App() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (email) {
-      setScreen('code');
+      setLoading(true);
+      setError('');
+      try {
+        const response = await fetch(
+          `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/logincoderequest?email=${encodeURIComponent(email)}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          }
+        );
+        
+        if (response.ok) {
+          setScreen('code');
+        } else {
+          const errorData = await response.text();
+          setError(errorData || 'Failed to send code. Please try again.');
+        }
+      } catch (err) {
+        setError('Network error. Please check your connection.');
+        console.error('Login error:', err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleCodeSubmit = () => {
-    if (code === '123456' || code.length >= 4) {
-      setScreen('main');
-      setActiveTab('add');
+  const handleCodeSubmit = async () => {
+    if (code.length >= 4) {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await fetch(
+          `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/login?email=${email}&code=${code}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Зберігаємо токен і дані користувача
+          if (data.token) {
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('userId', data.userId);
+            localStorage.setItem('userEmail', email);
+            setUserData(data);
+          }
+          setScreen('main');
+          setActiveTab('add');
+        } else {
+          const errorData = await response.text();
+          setError(errorData || 'Invalid code. Please try again.');
+        }
+      } catch (err) {
+        setError('Network error. Please check your connection.');
+        console.error('Code verification error:', err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    setUserData(null);
     setScreen('login');
     setEmail('');
     setCode('');
     setActiveTab('add');
+    setError('');
   };
 
-  const handleFileUpload = (e) => {
+  // Функція для API запитів з автоматичною авторизацією
+  // Приклад використання:
+  // const response = await fetchWithAuth('https://api.../endpoint', { method: 'POST', body: JSON.stringify(data) });
+  const fetchWithAuth = async (url, options = {}) => {
+    const token = localStorage.getItem('authToken');
+    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Якщо токен недійсний - виходимо з аккаунта
+    if (response.status === 401) {
+      handleLogout();
+      throw new Error('Session expired. Please login again.');
+    }
+
+    return response;
+  };
+
+  const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const newData = {
-        id: uploadedData.length + 1,
-        type: 'csv',
-        filename: file.name,
-        uploader: email,
-        date: new Date().toISOString().split('T')[0],
-        content: [
-          ['Column 1', 'Column 2', 'Column 3'],
-          ['Data 1', 'Data 2', 'Data 3']
-        ]
-      };
-      setUploadedData([newData, ...uploadedData]);
+      setSelectedFile(file);
+      setError('');
     }
   };
 
-  const handlePasteUpload = () => {
-    if (csvText.trim()) {
-      const newData = {
-        id: uploadedData.length + 1,
-        type: 'text',
-        filename: 'pasted_data.txt',
-        uploader: email,
-        date: new Date().toISOString().split('T')[0],
-        content: csvText
-      };
-      setUploadedData([newData, ...uploadedData]);
-      setCsvText('');
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Визначаємо тип файлу
+      let fileType = 'Text';
+      if (selectedFile.type.startsWith('image/')) {
+        fileType = 'Image';
+      } else if (selectedFile.name.endsWith('.csv') || selectedFile.type === 'text/csv') {
+        fileType = 'CSV';
+      }
+
+      // Створюємо FormData
+      const formData = new FormData();
+      formData.append('File', selectedFile);
+      formData.append('FileType', fileType);
+      formData.append('Notes', notes); // Використовуємо notes з поля Paste Text
+      formData.append('UploadedById', userData?.userId || localStorage.getItem('userId'));
+
+      // Відправляємо на API
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        'https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/File/upload',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Додаємо файл до локального списку
+        const newData = {
+          id: result.id || uploadedData.length + 1,
+          type: fileType.toLowerCase(),
+          filename: selectedFile.name,
+          uploader: email,
+          date: new Date().toISOString().split('T')[0],
+          content: fileType === 'Image' 
+            ? URL.createObjectURL(selectedFile)
+            : [['Column 1', 'Column 2', 'Column 3'], ['Data 1', 'Data 2', 'Data 3']]
+        };
+        
+        setUploadedData([newData, ...uploadedData]);
+        
+        // Очищаємо вибраний файл та input
+        setSelectedFile(null);
+        setNotes(''); // Очищаємо notes
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } else {
+        const errorText = await response.text();
+        setError(errorText || 'Failed to upload file. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Failed to upload file.');
+      console.error('File upload error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -206,20 +361,27 @@ export default function App() {
             <h1 className="text-2xl font-bold text-gray-800">myknowledge</h1>
           </div>
           <p className="text-center text-gray-600 mb-6">Enter your email to continue</p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
           <div>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyPress={handleEmailKeyPress}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none mb-4"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none mb-4 disabled:bg-gray-100"
               placeholder="you@example.com"
             />
             <button
               onClick={handleLogin}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              disabled={loading || !email}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Continue
+              {loading ? 'Sending...' : 'Continue'}
             </button>
           </div>
         </div>
@@ -236,20 +398,27 @@ export default function App() {
             <h1 className="text-2xl font-bold text-gray-800">myknowledge</h1>
           </div>
           <p className="text-center text-gray-600 mb-6">Code sent to {email}</p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
           <div>
             <input
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               onKeyPress={handleCodeKeyPress}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-center text-2xl tracking-widest mb-4"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-center text-2xl tracking-widest mb-4 disabled:bg-gray-100"
               placeholder="000000"
             />
             <button
               onClick={handleCodeSubmit}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              disabled={loading || code.length < 4}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Verify
+              {loading ? 'Verifying...' : 'Verify'}
             </button>
           </div>
         </div>
@@ -308,37 +477,84 @@ export default function App() {
       <main className="px-4 py-4">
         {activeTab === 'add' && (
           <div className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            
+            {loading && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-700 text-sm">
+                Uploading...
+              </div>
+            )}
+            
             <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4">
               <h3 className="text-base font-semibold text-gray-800 mb-3">Upload File</h3>
+              
+              {selectedFile && (
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <BookOpen className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm text-gray-700 font-medium">{selectedFile.name}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                      className="text-red-600 text-xs font-medium hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {(selectedFile.size / 1024).toFixed(2)} KB
+                  </p>
+                </div>
+              )}
+              
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                <label className="cursor-pointer">
-                  <span className="text-blue-600 font-medium">Tap to upload</span>
+                <label className={`cursor-pointer ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <span className="text-blue-600 font-medium">
+                    {selectedFile ? 'Choose another file' : 'Tap to upload'}
+                  </span>
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept=".csv,.txt,image/*"
-                    onChange={handleFileUpload}
+                    onChange={handleFileSelect}
+                    disabled={loading}
                     className="hidden"
                   />
                 </label>
                 <p className="text-xs text-gray-500 mt-2">CSV, text or image files</p>
               </div>
+              
+              {selectedFile && (
+                <button
+                  onClick={handleFileUpload}
+                  disabled={loading}
+                  className="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Uploading...' : 'Upload'}
+                </button>
+              )}
             </div>
 
             <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Paste Text</h3>
+              <h3 className="text-base font-semibold text-gray-800 mb-3">Notes</h3>
               <textarea
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
-                placeholder="Paste your text here..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={loading}
+                className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm disabled:bg-gray-100"
+                placeholder="Add notes for your file (optional)..."
               />
-              <button
-                onClick={handlePasteUpload}
-                className="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Upload
-              </button>
             </div>
           </div>
         )}
