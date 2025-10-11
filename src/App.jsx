@@ -60,6 +60,8 @@ export default function App() {
         
         // Завантажуємо файли користувача
         await fetchUserFiles(savedUserId);
+        // Завантажуємо список користувачів
+        await fetchAllUsers();
       }
     };
     
@@ -158,6 +160,39 @@ export default function App() {
     }
   };
 
+  // Функція для завантаження всіх користувачів
+  const fetchAllUsers = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        'https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/getallusers',
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Users from server:', result);
+        
+        // Якщо відповідь має структуру { success: true, data: [...] }
+        const usersData = result.data || result;
+        
+        // Витягуємо email з користувачів
+        const userEmails = usersData.map(user => user.email || user);
+        setUsers(userEmails);
+      } else if (response.status === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    }
+  };
+
   const handleLogin = async () => {
     if (email) {
       setLoading(true);
@@ -217,6 +252,8 @@ export default function App() {
           
           // Завантажуємо файли користувача
           await fetchUserFiles(data.userId);
+          // Завантажуємо список користувачів
+          await fetchAllUsers();
         } else {
           const errorData = await response.text();
           setError(errorData || 'Invalid code. Please try again.');
@@ -406,10 +443,43 @@ export default function App() {
     }
   };
 
-  const addUser = () => {
-    if (newUserEmail && !users.includes(newUserEmail)) {
-      setUsers([...users, newUserEmail]);
-      setNewUserEmail('');
+  const addUser = async () => {
+    if (!newUserEmail) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        'https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/createuser',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: newUserEmail,
+            isAdmin: true
+          }),
+        }
+      );
+
+      if (response.ok) {
+        // Оновлюємо список користувачів з сервера
+        await fetchAllUsers();
+        setNewUserEmail('');
+        setError(''); // Очищаємо помилки
+      } else {
+        const errorText = await response.text();
+        setError(errorText || 'Failed to create user. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Failed to create user.');
+      console.error('Create user error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -926,40 +996,62 @@ export default function App() {
 
             <div className="bg-white rounded-lg shadow p-4">
               <h3 className="text-base font-semibold text-gray-800 mb-3">Add User</h3>
-              <div className="flex space-x-2">
+              <div className="space-y-3">
                 <input
                   type="email"
                   value={newUserEmail}
                   onChange={(e) => setNewUserEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && newUserEmail && !loading) {
+                      addUser();
+                    }
+                  }}
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm disabled:bg-gray-100"
                   placeholder="user@example.com"
                 />
                 <button
                   onClick={addUser}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
+                  disabled={loading || !newUserEmail}
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  Add
+                  {loading ? 'Creating...' : 'Add User'}
                 </button>
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-base font-semibold text-gray-800 mb-3">Users</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-gray-800">Users</h3>
+                <button
+                  onClick={fetchAllUsers}
+                  disabled={loading}
+                  className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                >
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
               <div className="space-y-2">
-                {users.map((user, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-800">{user}</span>
-                    </div>
-                    <button
-                      onClick={() => removeUser(user)}
-                      className="text-red-600 hover:text-red-700 text-sm font-medium"
-                    >
-                      Remove
-                    </button>
+                {users.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    No users found
                   </div>
-                ))}
+                ) : (
+                  users.map((user, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-800">{user}</span>
+                      </div>
+                      <button
+                        onClick={() => removeUser(user)}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
