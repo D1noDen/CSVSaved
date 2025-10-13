@@ -23,6 +23,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [visibleRows, setVisibleRows] = useState({}); // Кількість видимих рядків для кожного CSV
+  const [deleteModal, setDeleteModal] = useState({ show: false, fileId: null, filename: '' });
 
   // Функція для декодування base64 з UTF-8
   const decodeBase64UTF8 = (base64) => {
@@ -312,25 +313,43 @@ export default function App() {
   };
 
   const handleFileUpload = async () => {
-    if (!selectedFile) return;
+    // Перевіряємо: якщо є notes але немає файлу - створюємо текстовий файл
+    if (!selectedFile && !notes) {
+      setError('Please select a file or enter notes');
+      return;
+    }
 
     setLoading(true);
     setError('');
 
     try {
-      // Визначаємо тип файлу
-      let fileType = 'Text';
-      if (selectedFile.type.startsWith('image/')) {
-        fileType = 'Image';
-      } else if (selectedFile.name.endsWith('.csv') || selectedFile.type === 'text/csv') {
-        fileType = 'CSV';
-      }
-
       // Створюємо FormData
       const formData = new FormData();
-      formData.append('File', selectedFile);
-      formData.append('FileType', fileType);
-      formData.append('Notes', notes); // Використовуємо notes з поля Paste Text
+      
+      if (!selectedFile && notes) {
+        // Якщо тільки notes без файлу - створюємо текстовий файл (UTF-8)
+        const encoder = new TextEncoder();
+        const textBlob = new Blob([encoder.encode(notes)], { type: 'text/plain;charset=utf-8' });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const textFile = new File([textBlob], `note-${timestamp}.txt`, { type: 'text/plain' });
+        
+        formData.append('File', textFile);
+        formData.append('FileType', 'Text');
+        formData.append('Notes', '');
+      } else {
+        // Звичайна логіка з файлом
+        let fileType = 'Text';
+        if (selectedFile.type.startsWith('image/')) {
+          fileType = 'Image';
+        } else if (selectedFile.name.endsWith('.csv') || selectedFile.type === 'text/csv') {
+          fileType = 'CSV';
+        }
+
+        formData.append('File', selectedFile);
+        formData.append('FileType', fileType);
+        formData.append('Notes', notes);
+      }
+      
       formData.append('UploadedById', userData?.userId || localStorage.getItem('userId'));
 
       // Відправляємо на API
@@ -741,16 +760,6 @@ export default function App() {
                 </label>
                 <p className="text-xs text-gray-500 mt-2">CSV, text or image files</p>
               </div>
-              
-              {selectedFile && (
-                <button
-                  onClick={handleFileUpload}
-                  disabled={loading}
-                  className="mt-3 w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Uploading...' : 'Upload'}
-                </button>
-              )}
             </div>
 
             <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4">
@@ -760,9 +769,22 @@ export default function App() {
                 onChange={(e) => setNotes(e.target.value)}
                 disabled={loading}
                 className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm disabled:bg-gray-100"
-                placeholder="Add notes for your file (optional)..."
+                placeholder="Add notes for your file or create a text note without file..."
               />
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Tip: If you only enter notes without a file, it will be saved as a text file
+              </p>
             </div>
+
+            {(selectedFile || notes) && (
+              <button
+                onClick={handleFileUpload}
+                disabled={loading}
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Uploading...' : (selectedFile ? 'Upload File' : 'Save Note as Text')}
+              </button>
+            )}
           </div>
         )}
 
