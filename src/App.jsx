@@ -14,7 +14,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [uploadedData, setUploadedData] = useState([]);
   const [expandedCard, setExpandedCard] = useState(null);
-  const [users, setUsers] = useState(['john@example.com', 'sarah@example.com']);
+  const [users, setUsers] = useState([]);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [copiedRow, setCopiedRow] = useState(null);
   const [editingText, setEditingText] = useState({});
@@ -183,9 +183,8 @@ export default function App() {
         // Якщо відповідь має структуру { success: true, data: [...] }
         const usersData = result.data || result;
         
-        // Витягуємо email з користувачів
-        const userEmails = usersData.map(user => user.email || user);
-        setUsers(userEmails);
+        // Зберігаємо повні дані користувачів (з ID)
+        setUsers(usersData);
       } else if (response.status === 401) {
         handleLogout();
       }
@@ -503,8 +502,40 @@ export default function App() {
     }
   };
 
-  const removeUser = (userEmail) => {
-    setUsers(users.filter(u => u !== userEmail));
+  const removeUser = async (userId) => {
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/softdelete/${userId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Оновлюємо список користувачів після видалення
+        await fetchAllUsers();
+      } else {
+        const errorText = await response.text();
+        setError(errorText || 'Failed to delete user. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Failed to delete user.');
+      console.error('Delete user error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyRow = (dataId, rowIndex) => {
@@ -1105,14 +1136,18 @@ export default function App() {
                   </div>
                 ) : (
                   users.map((user, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={user.id || idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-2">
                         <Mail className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-800">{user}</span>
+                        <span className="text-sm text-gray-800">{user.email}</span>
+                        {user.isAdmin && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Admin</span>
+                        )}
                       </div>
                       <button
-                        onClick={() => removeUser(user)}
-                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                        onClick={() => removeUser(user.id)}
+                        disabled={loading}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50"
                       >
                         Remove
                       </button>
