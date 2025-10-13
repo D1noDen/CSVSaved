@@ -326,11 +326,23 @@ export default function App() {
       const formData = new FormData();
       
       if (!selectedFile && notes) {
-        // Якщо тільки notes без файлу - створюємо текстовий файл (UTF-8)
+        // Якщо тільки notes без файлу - конвертуємо в base64
         const encoder = new TextEncoder();
-        const textBlob = new Blob([encoder.encode(notes)], { type: 'text/plain;charset=utf-8' });
+        const uint8Array = encoder.encode(notes);
+        
+        // Конвертуємо Uint8Array в binary string
+        let binaryString = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binaryString += String.fromCharCode(uint8Array[i]);
+        }
+        
+        // Конвертуємо binary string в base64
+        const base64Content = btoa(binaryString);
+        
+        // Створюємо blob з base64
+        const base64Blob = new Blob([base64Content], { type: 'text/plain' });
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const textFile = new File([textBlob], `note-${timestamp}.txt`, { type: 'text/plain' });
+        const textFile = new File([base64Blob], `note-${timestamp}.txt`, { type: 'text/plain' });
         
         formData.append('File', textFile);
         formData.append('FileType', 'Text');
