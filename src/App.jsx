@@ -1,5 +1,23 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Mail, Settings, LogOut, Plus, BookOpen, Calendar, User, Copy, Check } from 'lucide-react';
+import React , { useState, useRef, useEffect } from 'react';
+import './App.css';
+import SecretCalculator from './SecretCalculator';
+import {
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  Image as ImageIcon,
+  Table as TableIcon,
+  RefreshCw,
+  Settings,
+  User,
+  LogOut,
+  Plus,
+  X,
+  BookOpen,
+  Mail,
+  Check
+} from 'lucide-react';
 
 export default function App() {
   const [screen, setScreen] = useState('login');
@@ -193,33 +211,67 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
-    if (email) {
-      setLoading(true);
-      setError('');
-      try {
-        const response = await fetch(
-          `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/logincoderequest?email=${encodeURIComponent(email)}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          }
-        );
-        
-        if (response.ok) {
-          setScreen('code');
-        } else {
-          const errorData = await response.text();
-          setError(errorData || 'Failed to send code. Please try again.');
+  // Login from calculator
+  const handleCalculatorLogin = async (emailValue, codeValue) => {
+    setLoading(true);
+    setEmail(emailValue);
+
+    try {
+      // Логін з кодом (код вже був відправлений в калькуляторі)
+      const loginResponse = await fetch(
+        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/login?email=${encodeURIComponent(emailValue)}&code=${encodeURIComponent(codeValue)}`,
+        {
+          method: 'POST',
         }
-      } catch (err) {
-        setError('Network error. Please check your connection.');
-        console.error('Login error:', err);
-      } finally {
-        setLoading(false);
+      );
+
+      if (loginResponse.ok) {
+        const data = await loginResponse.json();
+        
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userId', data.userId.toString());
+        localStorage.setItem('userEmail', emailValue);
+
+        setUserData({ userId: data.userId, token: data.token });
+        setScreen('main');
+
+        await fetchUserFiles(data.userId);
+        await fetchAllUsers();
+      } else {
+        alert('Invalid verification code');
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Error during login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Login: Request code
+  const handleLogin = async () => {
+    if (!email) {
+      alert('Please enter your email');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/logincoderequest?email=${encodeURIComponent(email)}`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        setScreen('code');
+      } else {
+        alert('Failed to send verification code');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Error sending verification code');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -623,40 +675,7 @@ export default function App() {
   };
 
   if (screen === 'login') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-          <div className="flex items-center justify-center mb-6">
-            <BookOpen className="w-10 h-10 text-blue-600 mr-2" />
-            <h1 className="text-2xl font-bold text-gray-800">myknowledge</h1>
-          </div>
-          <p className="text-center text-gray-600 mb-6">Enter your email to continue</p>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-          <div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyPress={handleEmailKeyPress}
-              disabled={loading}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none mb-4 disabled:bg-gray-100"
-              placeholder="you@example.com"
-            />
-            <button
-              onClick={handleLogin}
-              disabled={loading || !email}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Sending...' : 'Continue'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <SecretCalculator onLogin={handleCalculatorLogin} />;
   }
 
   if (screen === 'code') {
