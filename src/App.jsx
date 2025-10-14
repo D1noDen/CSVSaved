@@ -975,28 +975,30 @@ export default function App() {
                   {expandedCard === data.id && (
                   <div className="border-t border-gray-100 p-3">
                     {data.type === 'csv' && (
-                      <div className="overflow-x-auto max-w-full -mx-3 px-3">
+                      <div>
                         <div className="mb-2 text-xs text-gray-600">
                           Total rows: {data.content.length - 1} | Showing: {Math.min(visibleRows[data.id] || 50, data.content.length - 1)}
                         </div>
-                        <div className="border border-gray-300 rounded-lg overflow-hidden">
-                          <table className="w-full text-sm min-w-max border-collapse">
-                            <thead>
-                              <tr className="bg-gray-100">
-                                <th className="w-10 p-2 border border-gray-300 sticky left-0 bg-gray-100 z-10 text-center font-semibold">#</th>
-                                {data.content[0].map((header, idx) => (
-                                  <th key={idx} className="text-left p-2 font-semibold text-gray-800 border border-gray-300 bg-gray-100 whitespace-nowrap min-w-[100px]">
-                                    {header}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.content.slice(1, (visibleRows[data.id] || 50) + 1).map((row, rowIdx) => (
-                                <tr 
-                                  key={rowIdx} 
-                                  className="hover:bg-blue-50 transition-colors"
-                                >
+                        <div className="overflow-x-auto -mx-3">
+                          <div className="inline-block min-w-full px-3">
+                            <div className="border border-gray-300 rounded-lg overflow-hidden">
+                              <table className="w-full text-sm border-collapse">
+                              <thead>
+                                <tr className="bg-gray-100">
+                                  <th className="w-10 p-2 border border-gray-300 sticky left-0 bg-gray-100 z-10 text-center font-semibold">#</th>
+                                  {data.content[0].map((header, idx) => (
+                                    <th key={idx} className="text-left p-2 font-semibold text-gray-800 border border-gray-300 bg-gray-100 whitespace-nowrap min-w-[100px]">
+                                      {header}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {data.content.slice(1, (visibleRows[data.id] || 50) + 1).map((row, rowIdx) => (
+                                  <tr 
+                                    key={rowIdx} 
+                                    className="hover:bg-blue-50 transition-colors"
+                                  >
                                   <td className="w-10 p-2 border border-gray-300 sticky left-0 bg-white z-10 text-center text-xs text-gray-500 font-medium">
                                     {copiedRow === `${data.id}-${rowIdx + 1}` ? (
                                       <Check className="w-4 h-4 text-green-600 mx-auto" />
@@ -1042,6 +1044,8 @@ export default function App() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                          </div>
                         </div>
                         {(visibleRows[data.id] || 50) < data.content.length - 1 && (
                           <button
