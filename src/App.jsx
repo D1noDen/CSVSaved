@@ -547,7 +547,7 @@ export default function App() {
           },
           body: JSON.stringify({
             email: newUserEmail,
-            isAdmin: true
+            role: 'Admin'
           }),
         }
       );
@@ -1015,28 +1015,12 @@ export default function App() {
                                         key={cellIdx} 
                                         className="p-2 border border-gray-300 bg-white whitespace-nowrap"
                                       >
-                                        {isEditing ? (
-                                          <input
-                                            type="text"
-                                            value={cell}
-                                            onChange={(e) => handleCellEdit(data.id, rowIdx + 1, cellIdx, e.target.value)}
-                                            onBlur={() => setEditingCell(null)}
-                                            autoFocus
-                                            className="w-full px-2 py-1 border-2 border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 bg-yellow-50"
-                                          />
-                                        ) : (
-                                          <div
-                                            onClick={() => copyRow(data.id, rowIdx + 1)}
-                                            onTouchStart={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
-                                            onTouchEnd={handleLongPressEnd}
-                                            onMouseDown={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
-                                            onMouseUp={handleLongPressEnd}
-                                            onMouseLeave={handleLongPressEnd}
-                                            className="cursor-pointer hover:bg-blue-100 active:bg-blue-200 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                                          >
-                                            {cell}
-                                          </div>
-                                        )}
+                                        <div
+                                          onClick={() => copyRow(data.id, rowIdx + 1)}
+                                          className="cursor-pointer hover:bg-blue-100 active:bg-blue-200 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                                        >
+                                          {cell}
+                                        </div>
                                       </td>
                                     );
                                   })}
@@ -1067,7 +1051,7 @@ export default function App() {
                           </button>
                         )}
                         <div className="text-xs text-gray-500 mt-2 px-2">
-                          Tap to copy row • Long press cell to edit
+                          Tap to copy row
                         </div>
                       </div>
                     )}
@@ -1075,15 +1059,10 @@ export default function App() {
                     {data.type === 'text' && (
                       <div>
                         <textarea
-                          value={editingText[data.id] !== undefined ? editingText[data.id] : data.content}
-                          onChange={(e) => setEditingText({ ...editingText, [data.id]: e.target.value })}
-                          onBlur={() => {
-                            if (editingText[data.id] !== undefined) {
-                              handleTextEdit(data.id, editingText[data.id]);
-                            }
-                          }}
+                          value={data.content}
+                          readOnly
                           onClick={() => copyRow(data.id, 0)}
-                          className="w-full h-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm font-mono whitespace-pre-wrap"
+                          className="w-full h-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm font-mono whitespace-pre-wrap bg-gray-50 cursor-pointer"
                         />
                         {copiedRow === `${data.id}-0` && (
                           <div className="flex items-center text-green-600 text-sm mt-2">
