@@ -136,11 +136,14 @@ export default function App() {
               try {
                 // Якщо data це base64, декодуємо з UTF-8
                 const csvText = decodeBase64UTF8(file.data);
-                const rows = csvText.split('\n').map(row => row.split(','));
+                // Визначаємо роздільник (кома або крапка з комою)
+                const delimiter = csvText.includes(';') ? ';' : ',';
+                const rows = csvText.split('\n').map(row => row.split(delimiter));
                 content = rows;
               } catch {
                 // Якщо не base64, просто розбиваємо на рядки
-                content = file.data.split('\n').map(row => row.split(','));
+                const delimiter = file.data.includes(';') ? ';' : ',';
+                content = file.data.split('\n').map(row => row.split(delimiter));
               }
             } else {
               content = [['No data']];
@@ -976,66 +979,70 @@ export default function App() {
                         <div className="mb-2 text-xs text-gray-600">
                           Total rows: {data.content.length - 1} | Showing: {Math.min(visibleRows[data.id] || 50, data.content.length - 1)}
                         </div>
-                        <table className="w-full text-sm min-w-max">
-                          <thead>
-                            <tr className="border-b border-gray-200">
-                              <th className="w-6 p-2 sticky left-0 bg-white z-10"></th>
-                              {data.content[0].map((header, idx) => (
-                                <th key={idx} className="text-left p-2 font-semibold text-gray-700 whitespace-nowrap">
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.content.slice(1, (visibleRows[data.id] || 50) + 1).map((row, rowIdx) => (
-                              <tr 
-                                key={rowIdx} 
-                                className="border-b border-gray-100"
-                              >
-                                <td className="w-6 p-2 sticky left-0 bg-white z-10">
-                                  {copiedRow === `${data.id}-${rowIdx + 1}` && (
-                                    <Check className="w-4 h-4 text-green-600" />
-                                  )}
-                                </td>
-                                {row.map((cell, cellIdx) => {
-                                  const cellKey =` ${data.id}-${rowIdx + 1}-${cellIdx}`;
-                                  const isEditing = editingCell === cellKey;
-                                  
-                                  return (
-                                    <td 
-                                      key={cellIdx} 
-                                      className="p-2 whitespace-nowrap"
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          type="text"
-                                          value={cell}
-                                          onChange={(e) => handleCellEdit(data.id, rowIdx + 1, cellIdx, e.target.value)}
-                                          onBlur={() => setEditingCell(null)}
-                                          autoFocus
-                                          className="w-full px-2 py-1 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                        />
-                                      ) : (
-                                        <div
-                                          onClick={() => copyRow(data.id, rowIdx + 1)}
-                                          onTouchStart={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
-                                          onTouchEnd={handleLongPressEnd}
-                                          onMouseDown={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
-                                          onMouseUp={handleLongPressEnd}
-                                          onMouseLeave={handleLongPressEnd}
-                                          className="cursor-pointer active:bg-blue-50 rounded px-1 -mx-1"
-                                        >
-                                          {cell}
-                                        </div>
-                                      )}
-                                    </td>
-                                  );
-                                })}
+                        <div className="border border-gray-300 rounded-lg overflow-hidden">
+                          <table className="w-full text-sm min-w-max border-collapse">
+                            <thead>
+                              <tr className="bg-gray-100">
+                                <th className="w-10 p-2 border border-gray-300 sticky left-0 bg-gray-100 z-10 text-center font-semibold">#</th>
+                                {data.content[0].map((header, idx) => (
+                                  <th key={idx} className="text-left p-2 font-semibold text-gray-800 border border-gray-300 bg-gray-100 whitespace-nowrap min-w-[100px]">
+                                    {header}
+                                  </th>
+                                ))}
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {data.content.slice(1, (visibleRows[data.id] || 50) + 1).map((row, rowIdx) => (
+                                <tr 
+                                  key={rowIdx} 
+                                  className="hover:bg-blue-50 transition-colors"
+                                >
+                                  <td className="w-10 p-2 border border-gray-300 sticky left-0 bg-white z-10 text-center text-xs text-gray-500 font-medium">
+                                    {copiedRow === `${data.id}-${rowIdx + 1}` ? (
+                                      <Check className="w-4 h-4 text-green-600 mx-auto" />
+                                    ) : (
+                                      rowIdx + 1
+                                    )}
+                                  </td>
+                                  {row.map((cell, cellIdx) => {
+                                    const cellKey = `${data.id}-${rowIdx + 1}-${cellIdx}`;
+                                    const isEditing = editingCell === cellKey;
+                                    
+                                    return (
+                                      <td 
+                                        key={cellIdx} 
+                                        className="p-2 border border-gray-300 bg-white whitespace-nowrap"
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            type="text"
+                                            value={cell}
+                                            onChange={(e) => handleCellEdit(data.id, rowIdx + 1, cellIdx, e.target.value)}
+                                            onBlur={() => setEditingCell(null)}
+                                            autoFocus
+                                            className="w-full px-2 py-1 border-2 border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 bg-yellow-50"
+                                          />
+                                        ) : (
+                                          <div
+                                            onClick={() => copyRow(data.id, rowIdx + 1)}
+                                            onTouchStart={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
+                                            onTouchEnd={handleLongPressEnd}
+                                            onMouseDown={() => handleLongPressStart(data.id, rowIdx + 1, cellIdx)}
+                                            onMouseUp={handleLongPressEnd}
+                                            onMouseLeave={handleLongPressEnd}
+                                            className="cursor-pointer hover:bg-blue-100 active:bg-blue-200 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                                          >
+                                            {cell}
+                                          </div>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                         {(visibleRows[data.id] || 50) < data.content.length - 1 && (
                           <button
                             onClick={() => setVisibleRows({ 
