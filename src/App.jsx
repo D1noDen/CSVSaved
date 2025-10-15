@@ -545,7 +545,6 @@ export default function App() {
           },
           body: JSON.stringify({
             email: newUserEmail,
-            role: 'Admin'
           }),
         }
       );
