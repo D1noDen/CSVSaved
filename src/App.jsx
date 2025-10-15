@@ -104,7 +104,7 @@ export default function App() {
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(
-        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/File/getallfiles?userId=${userId}`,
+        `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/File/getallfiles`,
         {
           method: 'GET',
           headers: {
@@ -165,7 +165,7 @@ export default function App() {
             id: file.fileId,
             type: file.fileType?.toLowerCase() || 'text',
             filename: file.fileName || 'Unknown',
-            uploader: localStorage.getItem('userEmail') || email || 'Unknown',
+            uploader: file.uploadedBy || "",
             date: file.uploadDate ? new Date(file.uploadDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             notes: file.notes || '',
             content: content
@@ -182,7 +182,7 @@ export default function App() {
     }
   };
 
-  // Функція для завантаження всіх користувачів
+ 
   const fetchAllUsers = async () => {
     try {
       const token = localStorage.getItem('authToken');
@@ -201,10 +201,10 @@ export default function App() {
         const result = await response.json();
         console.log('Users from server:', result);
         
-        // Якщо відповідь має структуру { success: true, data: [...] }
+       
         const usersData = result.data || result;
         
-        // Зберігаємо повні дані користувачів (з ID)
+       
         setUsers(usersData);
       } else if (response.status === 401) {
         handleLogout();
@@ -214,13 +214,13 @@ export default function App() {
     }
   };
 
-  // Login from calculator
+  
   const handleCalculatorLogin = async (emailValue, codeValue) => {
     setLoading(true);
     setEmail(emailValue);
 
     try {
-      // Логін з кодом (код вже був відправлений в калькуляторі)
+     
       const loginResponse = await fetch(
         `https://acaciamanagement-cec3bwdvf0dtc5cu.centralus-01.azurewebsites.net/api/User/login?email=${encodeURIComponent(emailValue)}&code=${encodeURIComponent(codeValue)}`,
         {
@@ -251,7 +251,7 @@ export default function App() {
     }
   };
 
-  // Login: Request code
+
   const handleLogin = async () => {
     if (!email) {
       alert('Please enter your email');
@@ -295,7 +295,7 @@ export default function App() {
         
         if (response.ok) {
           const data = await response.json();
-          // Зберігаємо токен і дані користувача
+         
           if (data.token) {
             localStorage.setItem('authToken', data.token);
             localStorage.setItem('userId', data.userId);
@@ -305,9 +305,9 @@ export default function App() {
           setScreen('main');
           setActiveTab('add');
           
-          // Завантажуємо файли користувача
+        
           await fetchUserFiles(data.userId);
-          // Завантажуємо список користувачів
+        
           await fetchAllUsers();
         } else {
           const errorData = await response.text();
@@ -334,9 +334,7 @@ export default function App() {
     setError('');
   };
 
-  // Функція для API запитів з автоматичною авторизацією
-  // Приклад використання:
-  // const response = await fetchWithAuth('https://api.../endpoint', { method: 'POST', body: JSON.stringify(data) });
+
   const fetchWithAuth = async (url, options = {}) => {
     const token = localStorage.getItem('authToken');
     
@@ -349,7 +347,7 @@ export default function App() {
       },
     });
 
-    // Якщо токен недійсний - виходимо з аккаунта
+   
     if (response.status === 401) {
       handleLogout();
       throw new Error('Session expired. Please login again.');
@@ -553,10 +551,10 @@ export default function App() {
       );
 
       if (response.ok) {
-        // Оновлюємо список користувачів з сервера
+       
         await fetchAllUsers();
         setNewUserEmail('');
-        setError(''); // Очищаємо помилки
+        setError(''); 
       } else {
         const errorText = await response.text();
         setError(errorText || 'Failed to create user. Please try again.');
@@ -591,7 +589,7 @@ export default function App() {
       );
 
       if (response.ok) {
-        // Оновлюємо список користувачів після видалення
+       
         await fetchAllUsers();
       } else {
         const errorText = await response.text();
